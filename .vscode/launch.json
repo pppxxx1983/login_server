@@ -1,0 +1,17 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Analytics Web + API (8791)",
+            "type": "node",
+            "request": "launch",
+            "program": "${workspaceFolder}/server/dist/main.js",
+            "cwd": "${workspaceFolder}/server",
+            "envFile": "${workspaceFolder}/.env",
+            "preLaunchTask": "Build Analytics (kill old server)",
+            "console": "integratedTerminal",
+            "restart": false,
+            "skipFiles": ["<node_internals>/**"]
+        }
+    ]
+}

@@ -1,0 +1,31 @@
+:root { font-family: Inter, "Microsoft YaHei", sans-serif; color: #1f2937; background: #f3f6fa; }
+body { margin: 0; }
+.layout { min-height: 100vh; }
+.el-header { display: flex; align-items: center; gap: 16px; background: #14213d; color: white; font-size: 22px; }
+.el-header span { color: #aebbd0; font-size: 14px; }
+.el-main { width: calc(100% - 40px); min-width: 0; margin: 20px; padding: 24px; overflow: hidden; background: white; border-radius: 10px; box-sizing: border-box; }
+.toolbar { display: flex; gap: 12px; margin-bottom: 18px; }
+.toolbar .el-input { width: 360px; }
+.el-pagination { margin-top: 18px; justify-content: flex-end; }
+h3 { margin-top: 24px; }
+.side-tabs { display: flex; width: 100%; min-width: 0; min-height: calc(100vh - 160px); }
+.side-tabs > .el-tabs__header { flex: 0 0 140px; width: 140px; }
+.side-tabs > .el-tabs__content { flex: 1 1 auto; width: 0; min-width: 0; overflow: visible; }
+.side-tabs > .el-tabs__content > .el-tab-pane { width: 100%; min-width: 0; }
+.side-tabs .el-tabs__item { justify-content: flex-start; padding-left: 20px; }
+.header-right { margin-left: auto; display: flex; align-items: center; gap: 12px; color: #aebbd0; font-size: 14px; }
+.auth-loading { min-height: 100vh; display: flex; align-items: center; justify-content: center; background: #f3f6fa; }
+.tracking-toolbar { align-items: center; }
+.tracking-toolbar .el-input { width: 360px; }
+.event-count { color: #64748b; font-size: 13px; }
+.tracking-table code { color: #2563eb; font-family: Consolas, monospace; font-size: 13px; }
+.tracking-table .priority-event-row td.el-table__cell { background: #fff1f0 !important; }
+.tracking-table .priority-event-row:hover td.el-table__cell { background: #ffe4e1 !important; }
+.tracking-table .priority-event-row code { color: #c62828; font-weight: 700; }
+.tracking-data-toolbar { flex-wrap: wrap; align-items: center; }
+.tracking-data-toolbar .el-date-editor { width: 320px !important; }
+.tracking-chart { width: 100%; height: 480px; margin-top: 12px; }
+.tracking-tabs { width: 100%; min-width: 0; }
+.tracking-tabs > .el-tabs__content { width: 100%; min-width: 0; overflow: visible; }
+.tracking-tabs .el-tab-pane { width: 100%; min-width: 0; }
+.tracking-tabs .el-table { width: 100% !important; }
