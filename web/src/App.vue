@@ -5,7 +5,7 @@ import * as echarts from 'echarts';
 import { api, clearToken } from './api';
 import Login from './Login.vue';
 
-const activeTab = ref('players');
+const activeTab = ref('stats');
 const loading = ref(false);
 const keyword = ref('');
 const players = ref<any[]>([]);
@@ -29,7 +29,26 @@ const trackingTotal = ref(0);
 const trackingPage = ref(1);
 const trackingLoading = ref(false);
 const trackingChartRef = ref<HTMLElement | null>(null);
+const dailyStats = ref<any[]>([]);
+const dailyStatsTotal = ref(0);
+const dailyStatsPage = ref(1);
+const dailyStatsPageSize = ref(20);
+const dailyStatsLoading = ref(false);
+const dailyStatsDateRange = ref<[string, string] | null>(null);
+const onlineStats = ref<any[]>([]);
+const onlineStatsTotal = ref(0);
+const onlineStatsPage = ref(1);
+const onlineStatsPageSize = ref(20);
+const onlineStatsLoading = ref(false);
+const onlineStatsDateRange = ref<[string, string] | null>(null);
+const currentOnline = ref(0);
+const currentOnlineLoading = ref(false);
+const onlineDurationDate = ref(new Date().toISOString().slice(0, 10));
+const onlineDurationData = ref<any[]>([]);
+const onlineDurationLoading = ref(false);
+const onlineDurationSummary = ref<any>(null);
 let trackingChart: echarts.ECharts | null = null;
+let currentOnlineTimer: number | null = null;
 let trackingResizeObserver: ResizeObserver | null = null;
 
 const trackingEvents = [
@@ -249,8 +268,116 @@ async function loadAdmins() {
   admins.value = data.items;
 }
 
+async function loadDailyStats() {
+  dailyStatsLoading.value = true;
+  try {
+    const params: any = {
+      page: dailyStatsPage.value,
+      pageSize: dailyStatsPageSize.value,
+    };
+    if (dailyStatsDateRange.value && dailyStatsDateRange.value[0]) {
+      params.startDate = dailyStatsDateRange.value[0];
+    }
+    if (dailyStatsDateRange.value && dailyStatsDateRange.value[1]) {
+      params.endDate = dailyStatsDateRange.value[1];
+    }
+    const { data } = await api.get('/daily-stats', { params });
+    dailyStats.value = data.items || [];
+    dailyStatsTotal.value = data.total || 0;
+  } finally { dailyStatsLoading.value = false; }
+}
+
+async function refreshDailyStats() {
+  dailyStatsPage.value = 1;
+  await loadDailyStats();
+}
+
+async function syncDailyStats() {
+  dailyStatsLoading.value = true;
+  try {
+    await api.post('/daily-stats/sync');
+    await api.post('/online-stats/sync');
+    await refreshDailyStats();
+  } finally { dailyStatsLoading.value = false; }
+}
+
+async function loadOnlineStats() {
+  onlineStatsLoading.value = true;
+  try {
+    const params: any = {
+      page: onlineStatsPage.value,
+      pageSize: onlineStatsPageSize.value,
+    };
+    if (onlineStatsDateRange.value && onlineStatsDateRange.value[0]) {
+      params.startDate = onlineStatsDateRange.value[0];
+    }
+    if (onlineStatsDateRange.value && onlineStatsDateRange.value[1]) {
+      params.endDate = onlineStatsDateRange.value[1];
+    }
+    const { data } = await api.get('/online-stats', { params });
+    onlineStats.value = data.items || [];
+    onlineStatsTotal.value = data.total || 0;
+  } finally { onlineStatsLoading.value = false; }
+}
+
+async function refreshOnlineStats() {
+  onlineStatsPage.value = 1;
+  await loadOnlineStats();
+}
+
+async function syncOnlineStats() {
+  onlineStatsLoading.value = true;
+  try {
+    await api.post('/online-stats/sync');
+    await refreshOnlineStats();
+    await loadCurrentOnline();
+  } finally { onlineStatsLoading.value = false; }
+}
+
+async function loadCurrentOnline() {
+  currentOnlineLoading.value = true;
+  try {
+    const { data } = await api.get('/online-stats/current');
+    currentOnline.value = data.currentOnline || 0;
+  } finally { currentOnlineLoading.value = false; }
+}
+
+async function loadOnlineDuration() {
+  onlineDurationLoading.value = true;
+  try {
+    const { data } = await api.get('/online-duration', {
+      params: { date: onlineDurationDate.value || undefined },
+    });
+    onlineDurationData.value = data.items || [];
+    onlineDurationSummary.value = {
+      date: data.date,
+      totalPaying: data.totalPaying,
+      totalNonPaying: data.totalNonPaying,
+      totalPlayers: data.totalPlayers,
+    };
+  } finally { onlineDurationLoading.value = false; }
+}
+
+function startCurrentOnlineTimer() {
+  stopCurrentOnlineTimer();
+  currentOnlineTimer = window.setInterval(loadCurrentOnline, 10000);
+}
+
+function stopCurrentOnlineTimer() {
+  if (currentOnlineTimer) {
+    clearInterval(currentOnlineTimer);
+    currentOnlineTimer = null;
+  }
+}
+
+async function jumpToDailyStatsPage(targetPage: number) {
+  const maxPage = Math.max(1, Math.ceil(dailyStatsTotal.value / dailyStatsPageSize.value));
+  dailyStatsPage.value = Math.max(1, Math.min(maxPage, targetPage));
+  await loadDailyStats();
+}
+
 async function loadAll() {
-  await Promise.all([loadPlayers(), loadDailyRanks(), loadLevelRanks(), loadAdmins(), loadTrackingEventOptions()]);
+  await Promise.all([loadDailyStats(), loadOnlineStats(), loadCurrentOnline(), loadOnlineDuration(), loadPlayers(), loadDailyRanks(), loadLevelRanks(), loadAdmins(), loadTrackingEventOptions()]);
   await refreshTrackingData();
 }
 
@@ -265,10 +392,16 @@ async function checkAuth() {
   try {
     const { data } = await api.get('/auth/me');
     currentAdmin.value = data;
-    await loadAll();
   } catch {
     clearToken();
     currentAdmin.value = null;
+    checkingAuth.value = false;
+    return;
+  }
+  try {
+    await loadAll();
+  } catch (err) {
+    console.error('load initial data failed', err);
   } finally {
     checkingAuth.value = false;
   }
@@ -349,11 +482,26 @@ watch([activeTab, trackingView], async () => {
     if (trackingResizeObserver) trackingResizeObserver.disconnect();
     disposeTrackingChart();
   }
+
+  if (activeTab.value === 'online') {
+    await loadCurrentOnline();
+    startCurrentOnlineTimer();
+  } else {
+    stopCurrentOnlineTimer();
+  }
+
+  if (activeTab.value === 'online-duration') {
+    if (!onlineDurationDate.value) {
+      onlineDurationDate.value = new Date().toISOString().slice(0, 10);
+    }
+    await loadOnlineDuration();
+  }
 });
 onBeforeUnmount(() => {
   window.removeEventListener('resize', resizeTrackingChart);
   if (trackingResizeObserver) trackingResizeObserver.disconnect();
   disposeTrackingChart();
+  stopCurrentOnlineTimer();
 });
 </script>
 
@@ -375,8 +523,153 @@ onBeforeUnmount(() => {
         </div>
       </el-header>
       <el-main>
-        <el-tabs v-model="activeTab" tab-position="left" class="side-tabs">
-          <el-tab-pane label="角色信息" name="players">
+        <div class="main-layout">
+          <el-menu :default-active="activeTab" class="side-menu" @select="activeTab = $event">
+            <el-sub-menu index="data">
+              <template #title><span>数据统计</span></template>
+              <el-menu-item index="stats">总数据</el-menu-item>
+              <el-menu-item index="online">在线数据</el-menu-item>
+              <el-menu-item index="online-duration">在线时长</el-menu-item>
+              <el-menu-item index="daily">每日排行</el-menu-item>
+              <el-menu-item index="levels">关卡排行</el-menu-item>
+              <el-menu-item index="tracking">埋点配置</el-menu-item>
+            </el-sub-menu>
+            <el-sub-menu index="players">
+              <template #title><span>玩家信息</span></template>
+              <el-menu-item index="players">角色信息</el-menu-item>
+            </el-sub-menu>
+            <el-sub-menu index="admin">
+              <template #title><span>后台管理</span></template>
+              <el-menu-item index="admins">后台账号</el-menu-item>
+            </el-sub-menu>
+          </el-menu>
+          <div class="main-content">
+          <div v-show="activeTab === 'stats'">
+            <h2>总数据</h2>
+            <el-table v-loading="dailyStatsLoading" :data="dailyStats" stripe border class="daily-stats-table">
+              <el-table-column prop="statDate" label="日期" width="110" fixed align="center" />
+              <el-table-column prop="loginCount" label="登录数" width="90" align="center" />
+              <el-table-column prop="newUsers" label="新增用户" width="100" align="center" />
+              <el-table-column prop="peakOnline" label="最高在线" width="100" align="center" />
+              <el-table-column prop="avgOnline" label="平均在线" width="100" align="center" />
+              <el-table-column prop="payingUsers" label="付费人数" width="100" align="center" />
+              <el-table-column prop="retentionD1" label="次日留存数" width="110" align="center" />
+              <el-table-column prop="retentionD1Rate" label="次日留存率" width="110" align="center">
+                <template #default="{ row }">{{ row.retentionD1Rate }}%</template>
+              </el-table-column>
+              <el-table-column prop="retentionD3" label="3日留存数" width="110" align="center" />
+              <el-table-column prop="retentionD3Rate" label="3日留存率" width="110" align="center">
+                <template #default="{ row }">{{ row.retentionD3Rate }}%</template>
+              </el-table-column>
+              <el-table-column prop="retentionD7" label="7日留存数" width="110" align="center" />
+              <el-table-column prop="retentionD7Rate" label="7日留存率" width="110" align="center">
+                <template #default="{ row }">{{ row.retentionD7Rate }}%</template>
+              </el-table-column>
+              <el-table-column prop="retentionD15" label="15日留存数" width="120" align="center" />
+              <el-table-column prop="retentionD15Rate" label="15日留存率" width="120" align="center">
+                <template #default="{ row }">{{ row.retentionD15Rate }}%</template>
+              </el-table-column>
+            </el-table>
+            <div class="pagination-bar">
+              <el-date-picker
+                v-model="dailyStatsDateRange"
+                type="daterange"
+                range-separator="至"
+                start-placeholder="开始日期"
+                end-placeholder="结束日期"
+                value-format="YYYY-MM-DD"
+                style="width: 220px"
+              />
+              <el-button type="primary" :loading="dailyStatsLoading" @click="refreshDailyStats">查询</el-button>
+              <el-button :loading="dailyStatsLoading" @click="refreshDailyStats">刷新</el-button>
+              <el-button type="success" :loading="dailyStatsLoading" @click="syncDailyStats">同步数据</el-button>
+              <el-pagination
+                v-model:current-page="dailyStatsPage"
+                v-model:page-size="dailyStatsPageSize"
+                :page-sizes="[10, 20, 50, 100]"
+                :total="dailyStatsTotal"
+                layout="total, sizes, prev, pager, next, jumper"
+                @current-change="loadDailyStats"
+                @size-change="dailyStatsPage = 1; loadDailyStats()"
+              />
+              <div class="page-jump-ext">
+                <el-button size="small" @click="jumpToDailyStatsPage(1)">首页</el-button>
+                <el-button size="small" @click="jumpToDailyStatsPage(Math.max(1, Math.ceil(dailyStatsTotal / dailyStatsPageSize)))">末页</el-button>
+                <span class="page-info">第 {{ dailyStatsPage }} / {{ Math.max(1, Math.ceil(dailyStatsTotal / dailyStatsPageSize)) }} 页</span>
+              </div>
+            </div>
+          </div>
+
+          <div v-show="activeTab === 'online'">
+            <h2>在线数据</h2>
+            <div class="stats-grid" style="margin-bottom: 18px;">
+              <el-card shadow="hover" class="stats-card">
+                <el-statistic title="当前在线" :value="currentOnline" />
+              </el-card>
+            </div>
+            <el-table v-loading="onlineStatsLoading" :data="onlineStats" stripe border class="daily-stats-table">
+              <el-table-column prop="statDate" label="日期" width="110" fixed align="center" />
+              <el-table-column prop="realtimeOnline" label="实时在线" width="100" align="center" />
+              <el-table-column prop="avgOnline" label="平均在线" width="100" align="center" />
+              <el-table-column prop="totalOnline" label="总在线" width="100" align="center" />
+            </el-table>
+            <div class="pagination-bar">
+              <el-date-picker
+                v-model="onlineStatsDateRange"
+                type="daterange"
+                range-separator="至"
+                start-placeholder="开始日期"
+                end-placeholder="结束日期"
+                value-format="YYYY-MM-DD"
+                style="width: 220px"
+              />
+              <el-button type="primary" :loading="onlineStatsLoading" @click="refreshOnlineStats">查询</el-button>
+              <el-button :loading="onlineStatsLoading" @click="refreshOnlineStats">刷新</el-button>
+              <el-button type="success" :loading="onlineStatsLoading" @click="syncOnlineStats">同步数据</el-button>
+              <el-pagination
+                v-model:current-page="onlineStatsPage"
+                v-model:page-size="onlineStatsPageSize"
+                :page-sizes="[10, 20, 50, 100]"
+                :total="onlineStatsTotal"
+                layout="total, sizes, prev, pager, next, jumper"
+                @current-change="loadOnlineStats"
+                @size-change="onlineStatsPage = 1; loadOnlineStats()"
+              />
+              <div class="page-jump-ext">
+                <el-button size="small" @click="onlineStatsPage = 1; loadOnlineStats()">首页</el-button>
+                <el-button size="small" @click="onlineStatsPage = Math.max(1, Math.ceil(onlineStatsTotal / onlineStatsPageSize)); loadOnlineStats()">末页</el-button>
+                <span class="page-info">第 {{ onlineStatsPage }} / {{ Math.max(1, Math.ceil(onlineStatsTotal / onlineStatsPageSize)) }} 页</span>
+              </div>
+            </div>
+          </div>
+
+          <div v-show="activeTab === 'online-duration'">
+            <h2>在线时长</h2>
+            <div class="toolbar">
+              <el-date-picker v-model="onlineDurationDate" value-format="YYYY-MM-DD" placeholder="选择日期" @change="loadOnlineDuration" />
+              <el-button type="primary" :loading="onlineDurationLoading" @click="loadOnlineDuration">查询</el-button>
+            </div>
+            <div v-if="onlineDurationSummary" class="online-duration-summary">
+              <span>日期：{{ onlineDurationSummary.date }}</span>
+              <span>RMB玩家：{{ onlineDurationSummary.totalPaying }}</span>
+              <span>非RMB玩家：{{ onlineDurationSummary.totalNonPaying }}</span>
+              <span>总玩家：{{ onlineDurationSummary.totalPlayers }}</span>
+            </div>
+            <el-table v-loading="onlineDurationLoading" :data="onlineDurationData" stripe border class="daily-stats-table">
+              <el-table-column prop="duration" label="在线时长(分钟)" width="140" align="center" />
+              <el-table-column prop="payingPlayers" label="RMB玩家" width="110" align="center" />
+              <el-table-column prop="payingRatio" label="RMB玩家占比" width="130" align="center">
+                <template #default="{ row }">{{ row.payingRatio }}%</template>
+              </el-table-column>
+              <el-table-column prop="nonPayingPlayers" label="非RMB玩家" width="120" align="center" />
+              <el-table-column prop="nonPayingRatio" label="非RMB玩家占比" width="150" align="center">
+                <template #default="{ row }">{{ row.nonPayingRatio }}%</template>
+              </el-table-column>
+              <el-table-column prop="totalPlayers" label="总玩家" width="100" align="center" />
+            </el-table>
+          </div>
+
+          <div v-show="activeTab === 'players'">
             <div class="toolbar">
               <el-input v-model="keyword" clearable placeholder="角色ID、名称或账号" @keyup.enter="page = 1; loadPlayers()" />
               <el-button type="primary" @click="page = 1; loadPlayers()">查询</el-button>
@@ -391,9 +684,9 @@ onBeforeUnmount(() => {
               <el-table-column prop="updatedAt" label="更新时间" min-width="180" />
             </el-table>
             <el-pagination v-model:current-page="page" :page-size="20" :total="total" layout="prev, pager, next, total" @current-change="loadPlayers" />
-          </el-tab-pane>
+          </div>
 
-          <el-tab-pane label="每日排行" name="daily">
+          <div v-show="activeTab === 'daily'">
             <div class="toolbar">
               <el-date-picker v-model="dailyDate" value-format="YYYY-MM-DD" placeholder="选择日期" />
               <el-button type="primary" @click="loadDailyRanks">查询</el-button>
@@ -407,9 +700,9 @@ onBeforeUnmount(() => {
               <el-table-column prop="score" label="分数" width="120" />
               <el-table-column prop="timeMs" label="耗时(ms)" width="120" />
             </el-table>
-          </el-tab-pane>
+          </div>
 
-          <el-tab-pane label="关卡排行" name="levels">
+          <div v-show="activeTab === 'levels'">
             <div class="toolbar">
               <el-input-number v-model="level" :min="1" :max="1000" />
               <el-button type="primary" @click="loadLevelRanks">查询</el-button>
@@ -423,9 +716,9 @@ onBeforeUnmount(() => {
               <el-table-column prop="timeMs" label="最短耗时(ms)" width="140" />
               <el-table-column prop="attempts" label="挑战次数" width="110" />
             </el-table>
-          </el-tab-pane>
+          </div>
 
-          <el-tab-pane label="埋点配置" name="tracking">
+          <div v-show="activeTab === 'tracking'">
             <el-tabs v-model="trackingView" class="tracking-tabs">
               <el-tab-pane label="数量趋势" name="timeline">
                 <div class="toolbar tracking-data-toolbar">
@@ -481,9 +774,9 @@ onBeforeUnmount(() => {
                 </el-table>
               </el-tab-pane>
             </el-tabs>
-          </el-tab-pane>
+          </div>
 
-          <el-tab-pane label="后台账号" name="admins">
+          <div v-show="activeTab === 'admins'">
             <div class="toolbar">
               <el-button type="primary" @click="openCreateAdmin">新增账号</el-button>
             </div>
@@ -504,8 +797,9 @@ onBeforeUnmount(() => {
                 </template>
               </el-table-column>
             </el-table>
-          </el-tab-pane>
-        </el-tabs>
+          </div>
+          </div>
+        </div>
       </el-main>
     </el-container>
 
