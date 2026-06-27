@@ -1,0 +1,34 @@
+{
+  "modes": {
+    "normal": {
+      "label": "普通",
+      "description": "普通关卡难度",
+      "maxLevel": 1000,
+      "groupSize": 0,
+      "groupCount": 0,
+      "curveType": "wave",
+      "curveAmplitude": 0.12,
+      "curveCycles": 1
+    },
+    "signin": {
+      "label": "签到",
+      "description": "签到难度",
+      "maxLevel": 31,
+      "groupSize": 31,
+      "groupCount": 1,
+      "curveType": "wave",
+      "curveAmplitude": 0.12,
+      "curveCycles": 1
+    },
+    "travel": {
+      "label": "旅行",
+      "description": "旅行难度",
+      "maxLevel": 120,
+      "groupSize": 10,
+      "groupCount": 12,
+      "curveType": "wave",
+      "curveAmplitude": 0.12,
+      "curveCycles": 1
+    }
+  }
+}

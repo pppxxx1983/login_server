@@ -7,7 +7,11 @@
     "start:dev": "node --env-file=../.env ./node_modules/@nestjs/cli/bin/nest.js start --watch",
     "build": "nest build",
     "check": "tsc --noEmit",
-    "seed:daily-stats": "node --env-file=../.env scripts/seed_daily_stats.js"
+    "seed:daily-stats": "node --env-file=../.env scripts/seed_daily_stats.js",
+    "seed:difficulty-ranges": "node --env-file=../.env scripts/seed_difficulty_ranges.js",
+    "seed:difficulty-ranges:normal": "node --env-file=../.env scripts/seed_difficulty_ranges.js --mode=normal",
+    "seed:difficulty-ranges:signin": "node --env-file=../.env scripts/seed_difficulty_ranges.js --mode=signin",
+    "seed:difficulty-ranges:travel": "node --env-file=../.env scripts/seed_difficulty_ranges.js --mode=travel"
   },
   "dependencies": {
     "@nestjs/common": "^11.1.3",

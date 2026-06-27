@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
-import { ElMessageBox } from 'element-plus';
+import { ElMessage, ElMessageBox } from 'element-plus';
 import * as echarts from 'echarts';
 import { api, clearToken } from './api';
 import Login from './Login.vue';
+import DifficultyRangeDetails from './DifficultyRangeDetails.vue';
 
 const activeTab = ref('stats');
 const loading = ref(false);
@@ -16,6 +17,10 @@ const dailyDate = ref('');
 const dailyRanks = ref<any[]>([]);
 const level = ref(1);
 const levelRanks = ref<any[]>([]);
+const difficultyRows = ref<any[]>([]);
+const difficultyTotal = ref(0);
+const difficultyLoading = ref(false);
+const difficultyMode = ref('normal');
 const eventKeyword = ref('');
 const eventCategory = ref('');
 const trackingView = ref('timeline');
@@ -263,6 +268,71 @@ async function loadLevelRanks() {
   } finally { loading.value = false; }
 }
 
+async function loadDifficulty() {
+  difficultyLoading.value = true;
+  try {
+    const { data } = await api.get('/difficulty', { params: { mode: difficultyMode.value } });
+    difficultyRows.value = data.items || [];
+    difficultyTotal.value = data.total || 0;
+  } finally { difficultyLoading.value = false; }
+}
+
+async function saveDifficulty(row: any) {
+  difficultyLoading.value = true;
+  try {
+    const wasNew = !row.id;
+    const payload = { ...row, mode: difficultyMode.value };
+    const { data } = row.id
+      ? await api.patch(`/difficulty/${row.id}`, payload)
+      : await api.post('/difficulty', payload);
+    Object.assign(row, data);
+    if (wasNew) difficultyTotal.value += 1;
+    ElMessage.success(`关卡段 ${row.startLevel}-${row.endLevel} 已保存到数据库`);
+  } catch (error: any) {
+    ElMessage.error(error?.response?.data?.message || error?.message || '保存失败');
+  } finally { difficultyLoading.value = false; }
+}
+
+function addDifficultyRange() {
+  const highestEnd = difficultyRows.value.reduce((max, item) => Math.max(max, Number(item.endLevel) || 0), 0);
+  const startLevel = highestEnd + 1;
+  const groupSize = difficultyMode.value === 'signin' ? 31 : 10;
+  const maxLevel = difficultyMode.value === 'travel' ? 120 : (difficultyMode.value === 'signin' ? 31 : 1000);
+  const safeStart = Math.min(startLevel, maxLevel);
+  const safeEnd = Math.min(maxLevel, safeStart + groupSize - 1);
+  difficultyRows.value.unshift({
+    id: null, startLevel: safeStart, endLevel: safeEnd, difficulty: 1,
+    gridW: 10, gridH: 14, maxLayers: 1, minTiles: 20, maxTiles: 40,
+    chaos: 0.08, minAvailablePairs: 10, hiddenRatio: 0.04, specialPairCount: 1,
+    curveType: 'wave', curveAmplitude: 0.12, curveCycles: 1,
+  });
+}
+
+function difficultyRangeSaved(row: any, value: any) {
+  Object.assign(row, value);
+}
+
+function setRangeCardGrid(row: any, field: 'gridW' | 'gridH', value: number | undefined) {
+  row[field] = Math.max(2, Math.round(Number(value) || 1) * 2);
+}
+
+async function deleteDifficulty(row: any) {
+  if (!row.id) { difficultyRows.value = difficultyRows.value.filter((item) => item !== row); return; }
+  await ElMessageBox.confirm(`确定删除 ${row.startLevel}-${row.endLevel} 关的难度覆盖吗？`, '删除关卡段', { type: 'warning' });
+  await api.delete(`/difficulty/${row.id}`);
+  await loadDifficulty();
+}
+
+async function resetDifficulty() {
+  const modeLabels: Record<string, string> = { normal: '普通', travel: '旅行', signin: '签到' };
+  await ElMessageBox.confirm(`将重新生成【${modeLabels[difficultyMode.value]}】难度的默认关卡段，当前修改会被默认值替换，是否继续？`, '恢复默认配置', { type: 'warning' });
+  difficultyLoading.value = true;
+  try {
+    await api.post('/difficulty/reset', null, { params: { mode: difficultyMode.value } });
+    await loadDifficulty();
+  } finally { difficultyLoading.value = false; }
+}
+
 async function loadAdmins() {
   const { data } = await api.get('/admins');
   admins.value = data.items;
@@ -377,7 +447,7 @@ async function jumpToDailyStatsPage(targetPage: number) {
 }
 
 async function loadAll() {
-  await Promise.all([loadDailyStats(), loadOnlineStats(), loadCurrentOnline(), loadOnlineDuration(), loadPlayers(), loadDailyRanks(), loadLevelRanks(), loadAdmins(), loadTrackingEventOptions()]);
+  await Promise.all([loadDailyStats(), loadOnlineStats(), loadCurrentOnline(), loadOnlineDuration(), loadPlayers(), loadDailyRanks(), loadLevelRanks(), loadDifficulty(), loadAdmins(), loadTrackingEventOptions()]);
   await refreshTrackingData();
 }
 
@@ -541,6 +611,7 @@ onBeforeUnmount(() => {
             <el-sub-menu index="admin">
               <template #title><span>后台管理</span></template>
               <el-menu-item index="admins">后台账号</el-menu-item>
+              <el-menu-item index="difficulty">难度设置</el-menu-item>
             </el-sub-menu>
           </el-menu>
           <div class="main-content">
@@ -774,6 +845,37 @@ onBeforeUnmount(() => {
                 </el-table>
               </el-tab-pane>
             </el-tabs>
+          </div>
+
+          <div v-show="activeTab === 'difficulty'">
+            <div class="toolbar difficulty-toolbar">
+              <el-select v-model="difficultyMode" style="width: 120px" @change="loadDifficulty">
+                <el-option label="普通" value="normal" />
+                <el-option label="旅行" value="travel" />
+                <el-option label="签到" value="signin" />
+              </el-select>
+              <el-button type="primary" @click="addDifficultyRange">新增关卡段</el-button>
+              <el-button :loading="difficultyLoading" @click="loadDifficulty">刷新</el-button>
+              <el-button type="warning" plain :loading="difficultyLoading" @click="resetDifficulty">恢复默认配置</el-button>
+              <span class="difficulty-tip">当前模式：{{ difficultyMode === 'travel' ? '旅行（120关，10关一组）' : (difficultyMode === 'signin' ? '签到（1组，1-31关）' : '普通（1000关）') }}</span>
+            </div>
+            <el-table v-loading="difficultyLoading" :data="difficultyRows" border stripe class="difficulty-table">
+              <el-table-column type="expand" width="48"><template #default="{ row }"><DifficultyRangeDetails v-if="row.id" :range="row" :mode="difficultyMode" @saved="(value: any) => difficultyRangeSaved(row, value)" /><div v-else class="difficulty-tip">请先保存新关卡段，再展开设置曲线。</div></template></el-table-column>
+              <el-table-column label="起始关" width="90" fixed><template #default="{ row }"><el-input-number v-model="row.startLevel" :min="1" :controls="false" /></template></el-table-column>
+              <el-table-column label="结束关" width="90" fixed><template #default="{ row }"><el-input-number v-model="row.endLevel" :min="row.startLevel || 1" :controls="false" /></template></el-table-column>
+              <el-table-column label="难度" width="100"><template #default="{ row }"><el-input-number v-model="row.difficulty" :min="1" :max="3" :controls="false" /></template></el-table-column>
+              <el-table-column label="每层列数" width="100"><template #default="{ row }"><el-input-number :model-value="Math.floor(row.gridW / 2)" :min="1" :controls="false" @change="(value: number | undefined) => setRangeCardGrid(row, 'gridW', value)" /></template></el-table-column>
+              <el-table-column label="每层行数" width="100"><template #default="{ row }"><el-input-number :model-value="Math.floor(row.gridH / 2)" :min="1" :controls="false" @change="(value: number | undefined) => setRangeCardGrid(row, 'gridH', value)" /></template></el-table-column>
+              <el-table-column label="层数" width="85"><template #default="{ row }"><el-input-number v-model="row.maxLayers" :min="1" :max="20" :controls="false" /></template></el-table-column>
+              <el-table-column label="最少牌数" width="100"><template #default="{ row }"><el-input-number v-model="row.minTiles" :min="0" :step="2" :controls="false" /></template></el-table-column>
+              <el-table-column label="最多牌数" width="100"><template #default="{ row }"><el-input-number v-model="row.maxTiles" :min="0" :step="2" :controls="false" /></template></el-table-column>
+              <el-table-column label="混乱系数" width="105"><template #default="{ row }"><el-input-number v-model="row.chaos" :min="0" :max="1" :step="0.01" :precision="2" :controls="false" /></template></el-table-column>
+              <el-table-column label="可消除对数" width="115"><template #default="{ row }"><el-input-number v-model="row.minAvailablePairs" :min="0" :controls="false" /></template></el-table-column>
+              <el-table-column label="背牌比例" width="105"><template #default="{ row }"><el-input-number v-model="row.hiddenRatio" :min="0" :max="1" :step="0.01" :precision="2" :controls="false" /></template></el-table-column>
+              <el-table-column label="特殊牌对数" width="115"><template #default="{ row }"><el-input-number v-model="row.specialPairCount" :min="0" :controls="false" /></template></el-table-column>
+              <el-table-column label="操作" width="120" fixed="right"><template #default="{ row }"><el-button link type="primary" @click="saveDifficulty(row)">保存</el-button><el-button link type="danger" @click="deleteDifficulty(row)">删除</el-button></template></el-table-column>
+            </el-table>
+            <div class="difficulty-count">共 {{ difficultyTotal }} 个关卡段</div>
           </div>
 
           <div v-show="activeTab === 'admins'">

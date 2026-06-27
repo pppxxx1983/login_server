@@ -36,3 +36,6 @@ h3 { margin-top: 24px; }
 .online-duration-summary { display: flex; gap: 24px; margin-bottom: 18px; color: #475569; font-size: 14px; }
 .online-duration-summary span { font-weight: 500; }
 .daily-stats-table .cell { font-size: 12px; line-height: 1.4; padding-top: 6px; padding-bottom: 6px; }
+.difficulty-table .el-input-number { width: 100%; }
+.difficulty-tip { color: #64748b; font-size: 13px; line-height: 32px; }
+.difficulty-count { margin-top: 12px; color: #64748b; font-size: 13px; text-align: right; }

@@ -11,6 +11,7 @@ import { OnlineStatsController } from './online-stats.controller';
 import { OnlineDurationController } from './online-duration.controller';
 import { AuthService } from './auth.service';
 import { TrackingController } from './tracking.controller';
+import { DifficultyController, DifficultyLevelsController } from './difficulty.controller';
 
 @Module({
   controllers: [
@@ -23,6 +24,8 @@ import { TrackingController } from './tracking.controller';
     DailyStatsController,
     OnlineStatsController,
     OnlineDurationController,
+    DifficultyController,
+    DifficultyLevelsController,
   ],
   providers: [DatabaseService, AdminTokenGuard, AuthService],
 })
