@@ -12,6 +12,7 @@ import { OnlineDurationController } from './online-duration.controller';
 import { AuthService } from './auth.service';
 import { TrackingController } from './tracking.controller';
 import { DifficultyController, DifficultyLevelsController } from './difficulty.controller';
+import { AutoMatchConfigController } from './auto-match-config.controller';
 
 @Module({
   controllers: [
@@ -26,6 +27,7 @@ import { DifficultyController, DifficultyLevelsController } from './difficulty.c
     OnlineDurationController,
     DifficultyController,
     DifficultyLevelsController,
+    AutoMatchConfigController,
   ],
   providers: [DatabaseService, AdminTokenGuard, AuthService],
 })

@@ -27,6 +27,7 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
     await this.createTrackingTable();
     await this.createDailyStatsTable();
     await this.createDifficultyTable();
+    await this.createAutoMatchConfigTable();
     await this.seedDefaultAdmin();
   }
 
@@ -269,6 +270,25 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
     if (rows.length === 0) {
       await this.pool.query(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
     }
+  }
+
+  private async createAutoMatchConfigTable() {
+    await this.pool.query(`
+      CREATE TABLE IF NOT EXISTS auto_match_config (
+        pair_count TINYINT UNSIGNED NOT NULL PRIMARY KEY,
+        chance DECIMAL(5,4) NOT NULL DEFAULT 0.0000,
+        updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `);
+    const [rows]: any = await this.pool.query('SELECT pair_count FROM auto_match_config WHERE pair_count BETWEEN 1 AND 8');
+    const existing = new Set((rows || []).map((row: any) => row.pair_count));
+    const defaults: Record<number, number> = { 8: 0.25, 7: 0.40, 6: 0.60, 5: 0.80, 4: 0, 3: 0, 2: 0, 1: 0 };
+    const missing = Object.keys(defaults)
+      .map(Number)
+      .filter((pairCount) => !existing.has(pairCount));
+    if (!missing.length) return;
+    const values = missing.map((pairCount) => [pairCount, defaults[pairCount]]);
+    await this.pool.query('INSERT INTO auto_match_config (pair_count, chance) VALUES ?', [values]);
   }
 
   private async seedDefaultAdmin() {

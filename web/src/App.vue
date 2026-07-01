@@ -21,6 +21,8 @@ const difficultyRows = ref<any[]>([]);
 const difficultyTotal = ref(0);
 const difficultyLoading = ref(false);
 const difficultyMode = ref('normal');
+const autoMatchConfig = ref<Record<number, number>>({});
+const autoMatchLoading = ref(false);
 const eventKeyword = ref('');
 const eventCategory = ref('');
 const trackingView = ref('timeline');
@@ -333,6 +335,42 @@ async function resetDifficulty() {
   } finally { difficultyLoading.value = false; }
 }
 
+async function loadAutoMatchConfig() {
+  autoMatchLoading.value = true;
+  try {
+    const { data } = await api.get('/auto-match-config');
+    autoMatchConfig.value = data.chances || {};
+  } finally { autoMatchLoading.value = false; }
+}
+
+async function saveAutoMatchConfig() {
+  autoMatchLoading.value = true;
+  try {
+    const chances: Record<number, number> = {};
+    for (let i = 1; i <= 8; i += 1) {
+      const value = Number(autoMatchConfig.value[i]);
+      chances[i] = Number.isFinite(value) ? Math.max(0, Math.min(1, value)) : 0;
+    }
+    const { data } = await api.post('/auto-match-config', { chances });
+    autoMatchConfig.value = data.chances || {};
+    ElMessage.success('自动匹配配置已保存');
+  } catch (error: any) {
+    ElMessage.error(error?.response?.data?.message || error?.message || '保存失败');
+  } finally { autoMatchLoading.value = false; }
+}
+
+async function resetAutoMatchConfig() {
+  await ElMessageBox.confirm('将恢复自动匹配的默认概率，当前修改会被替换，是否继续？', '恢复默认配置', { type: 'warning' });
+  autoMatchLoading.value = true;
+  try {
+    const { data } = await api.post('/auto-match-config/reset');
+    autoMatchConfig.value = data.chances || {};
+    ElMessage.success('已恢复默认配置');
+  } catch (error: any) {
+    ElMessage.error(error?.response?.data?.message || error?.message || '恢复失败');
+  } finally { autoMatchLoading.value = false; }
+}
+
 async function loadAdmins() {
   const { data } = await api.get('/admins');
   admins.value = data.items;
@@ -447,7 +485,7 @@ async function jumpToDailyStatsPage(targetPage: number) {
 }
 
 async function loadAll() {
-  await Promise.all([loadDailyStats(), loadOnlineStats(), loadCurrentOnline(), loadOnlineDuration(), loadPlayers(), loadDailyRanks(), loadLevelRanks(), loadDifficulty(), loadAdmins(), loadTrackingEventOptions()]);
+  await Promise.all([loadDailyStats(), loadOnlineStats(), loadCurrentOnline(), loadOnlineDuration(), loadPlayers(), loadDailyRanks(), loadLevelRanks(), loadDifficulty(), loadAutoMatchConfig(), loadAdmins(), loadTrackingEventOptions()]);
   await refreshTrackingData();
 }
 
@@ -612,6 +650,7 @@ onBeforeUnmount(() => {
               <template #title><span>后台管理</span></template>
               <el-menu-item index="admins">后台账号</el-menu-item>
               <el-menu-item index="difficulty">难度设置</el-menu-item>
+              <el-menu-item index="auto-match">自动匹配</el-menu-item>
             </el-sub-menu>
           </el-menu>
           <div class="main-content">
@@ -878,6 +917,28 @@ onBeforeUnmount(() => {
             <div class="difficulty-count">共 {{ difficultyTotal }} 个关卡段</div>
           </div>
 
+          <div v-show="activeTab === 'auto-match'">
+            <div class="toolbar">
+              <el-button type="primary" :loading="autoMatchLoading" @click="saveAutoMatchConfig">保存配置</el-button>
+              <el-button :loading="autoMatchLoading" @click="loadAutoMatchConfig">刷新</el-button>
+              <el-button type="warning" plain :loading="autoMatchLoading" @click="resetAutoMatchConfig">恢复默认</el-button>
+            </div>
+            <el-form label-width="120px" class="auto-match-form">
+              <el-form-item v-for="pair in [8, 7, 6, 5, 4, 3, 2, 1]" :key="pair" :label="`剩余 ${pair} 对`">
+                <el-input-number
+                  v-model="autoMatchConfig[pair]"
+                  :min="0"
+                  :max="1"
+                  :step="0.05"
+                  :precision="2"
+                  :controls="false"
+                  style="width: 140px"
+                />
+                <span class="auto-match-hint">触发概率（0~1）</span>
+              </el-form-item>
+            </el-form>
+          </div>
+
           <div v-show="activeTab === 'admins'">
             <div class="toolbar">
               <el-button type="primary" @click="openCreateAdmin">新增账号</el-button>
@@ -951,3 +1012,15 @@ onBeforeUnmount(() => {
     </el-dialog>
   </template>
 </template>
+
+<style scoped>
+.auto-match-form {
+  max-width: 420px;
+  margin-top: 12px;
+}
+.auto-match-hint {
+  margin-left: 12px;
+  color: #94a3b8;
+  font-size: 13px;
+}
+</style>
