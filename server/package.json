@@ -11,7 +11,11 @@
     "seed:difficulty-ranges": "node --env-file=../.env scripts/seed_difficulty_ranges.js",
     "seed:difficulty-ranges:normal": "node --env-file=../.env scripts/seed_difficulty_ranges.js --mode=normal",
     "seed:difficulty-ranges:signin": "node --env-file=../.env scripts/seed_difficulty_ranges.js --mode=signin",
-    "seed:difficulty-ranges:travel": "node --env-file=../.env scripts/seed_difficulty_ranges.js --mode=travel"
+    "seed:difficulty-ranges:travel": "node --env-file=../.env scripts/seed_difficulty_ranges.js --mode=travel",
+    "seed:difficulty-base": "node --env-file=../.env scripts/seed_difficulty_base_data.js",
+    "seed:difficulty-base:normal": "node --env-file=../.env scripts/seed_difficulty_base_data.js --mode=normal",
+    "seed:difficulty-base:signin": "node --env-file=../.env scripts/seed_difficulty_base_data.js --mode=signin",
+    "seed:difficulty-base:travel": "node --env-file=../.env scripts/seed_difficulty_base_data.js --mode=travel"
   },
   "dependencies": {
     "@nestjs/common": "^11.1.3",
