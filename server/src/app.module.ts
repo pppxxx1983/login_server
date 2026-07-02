@@ -13,6 +13,7 @@ import { AuthService } from './auth.service';
 import { TrackingController } from './tracking.controller';
 import { DifficultyController, DifficultyLevelsController } from './difficulty.controller';
 import { AutoMatchConfigController } from './auto-match-config.controller';
+import { SystemConfigController } from './system-config.controller';
 
 @Module({
   controllers: [
@@ -28,6 +29,7 @@ import { AutoMatchConfigController } from './auto-match-config.controller';
     DifficultyController,
     DifficultyLevelsController,
     AutoMatchConfigController,
+    SystemConfigController,
   ],
   providers: [DatabaseService, AdminTokenGuard, AuthService],
 })

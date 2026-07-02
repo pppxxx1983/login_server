@@ -21,8 +21,10 @@ const difficultyRows = ref<any[]>([]);
 const difficultyTotal = ref(0);
 const difficultyLoading = ref(false);
 const difficultyMode = ref('normal');
-const autoMatchConfig = ref<Record<number, number>>({});
-const autoMatchLoading = ref(false);
+const systemConfigChances = ref<Record<number, number>>({});
+const systemConfigAgeSegments = ref<Record<string, string>>({});
+const systemConfigLoading = ref(false);
+const systemConfigActiveTab = ref('auto-match');
 const eventKeyword = ref('');
 const eventCategory = ref('');
 const trackingView = ref('timeline');
@@ -335,40 +337,69 @@ async function resetDifficulty() {
   } finally { difficultyLoading.value = false; }
 }
 
-async function loadAutoMatchConfig() {
-  autoMatchLoading.value = true;
+async function loadSystemConfig() {
+  systemConfigLoading.value = true;
   try {
-    const { data } = await api.get('/auto-match-config');
-    autoMatchConfig.value = data.chances || {};
-  } finally { autoMatchLoading.value = false; }
+    const { data } = await api.get('/system-config');
+    systemConfigChances.value = data.chances || {};
+    systemConfigAgeSegments.value = data.ageSegments || {};
+  } finally { systemConfigLoading.value = false; }
 }
 
-async function saveAutoMatchConfig() {
-  autoMatchLoading.value = true;
+async function saveAutoMatchChances() {
+  systemConfigLoading.value = true;
   try {
     const chances: Record<number, number> = {};
     for (let i = 1; i <= 8; i += 1) {
-      const value = Number(autoMatchConfig.value[i]);
+      const value = Number(systemConfigChances.value[i]);
       chances[i] = Number.isFinite(value) ? Math.max(0, Math.min(1, value)) : 0;
     }
-    const { data } = await api.post('/auto-match-config', { chances });
-    autoMatchConfig.value = data.chances || {};
+    const { data } = await api.post('/system-config', { chances });
+    systemConfigChances.value = data.chances || {};
     ElMessage.success('自动匹配配置已保存');
   } catch (error: any) {
     ElMessage.error(error?.response?.data?.message || error?.message || '保存失败');
-  } finally { autoMatchLoading.value = false; }
+  } finally { systemConfigLoading.value = false; }
 }
 
-async function resetAutoMatchConfig() {
-  await ElMessageBox.confirm('将恢复自动匹配的默认概率，当前修改会被替换，是否继续？', '恢复默认配置', { type: 'warning' });
-  autoMatchLoading.value = true;
+async function saveAgeSegmentLabels() {
+  systemConfigLoading.value = true;
   try {
-    const { data } = await api.post('/auto-match-config/reset');
-    autoMatchConfig.value = data.chances || {};
-    ElMessage.success('已恢复默认配置');
+    const ageSegments: Record<string, string> = {
+      age_segment_1: systemConfigAgeSegments.value.age_segment_1 ?? '',
+      age_segment_2: systemConfigAgeSegments.value.age_segment_2 ?? '',
+      age_segment_3: systemConfigAgeSegments.value.age_segment_3 ?? '',
+    };
+    const { data } = await api.post('/system-config', { ageSegments });
+    systemConfigAgeSegments.value = data.ageSegments || {};
+    ElMessage.success('年龄段标签已保存');
+  } catch (error: any) {
+    ElMessage.error(error?.response?.data?.message || error?.message || '保存失败');
+  } finally { systemConfigLoading.value = false; }
+}
+
+async function resetAutoMatchChances() {
+  await ElMessageBox.confirm('将恢复自动匹配的默认概率，当前修改会被替换，是否继续？', '恢复默认配置', { type: 'warning' });
+  systemConfigLoading.value = true;
+  try {
+    const { data } = await api.post('/system-config/reset/auto-match');
+    systemConfigChances.value = data.chances || {};
+    ElMessage.success('自动匹配已恢复默认配置');
   } catch (error: any) {
     ElMessage.error(error?.response?.data?.message || error?.message || '恢复失败');
-  } finally { autoMatchLoading.value = false; }
+  } finally { systemConfigLoading.value = false; }
+}
+
+async function resetAgeSegmentLabels() {
+  await ElMessageBox.confirm('将恢复年龄段标签的默认值，当前修改会被替换，是否继续？', '恢复默认配置', { type: 'warning' });
+  systemConfigLoading.value = true;
+  try {
+    const { data } = await api.post('/system-config/reset/age-segments');
+    systemConfigAgeSegments.value = data.ageSegments || {};
+    ElMessage.success('年龄段标签已恢复默认配置');
+  } catch (error: any) {
+    ElMessage.error(error?.response?.data?.message || error?.message || '恢复失败');
+  } finally { systemConfigLoading.value = false; }
 }
 
 async function loadAdmins() {
@@ -485,7 +516,7 @@ async function jumpToDailyStatsPage(targetPage: number) {
 }
 
 async function loadAll() {
-  await Promise.all([loadDailyStats(), loadOnlineStats(), loadCurrentOnline(), loadOnlineDuration(), loadPlayers(), loadDailyRanks(), loadLevelRanks(), loadDifficulty(), loadAutoMatchConfig(), loadAdmins(), loadTrackingEventOptions()]);
+  await Promise.all([loadDailyStats(), loadOnlineStats(), loadCurrentOnline(), loadOnlineDuration(), loadPlayers(), loadDailyRanks(), loadLevelRanks(), loadDifficulty(), loadSystemConfig(), loadAdmins(), loadTrackingEventOptions()]);
   await refreshTrackingData();
 }
 
@@ -650,7 +681,7 @@ onBeforeUnmount(() => {
               <template #title><span>后台管理</span></template>
               <el-menu-item index="admins">后台账号</el-menu-item>
               <el-menu-item index="difficulty">难度设置</el-menu-item>
-              <el-menu-item index="auto-match">自动匹配</el-menu-item>
+              <el-menu-item index="system-config">系统配置</el-menu-item>
             </el-sub-menu>
           </el-menu>
           <div class="main-content">
@@ -917,26 +948,52 @@ onBeforeUnmount(() => {
             <div class="difficulty-count">共 {{ difficultyTotal }} 个关卡段</div>
           </div>
 
-          <div v-show="activeTab === 'auto-match'">
-            <div class="toolbar">
-              <el-button type="primary" :loading="autoMatchLoading" @click="saveAutoMatchConfig">保存配置</el-button>
-              <el-button :loading="autoMatchLoading" @click="loadAutoMatchConfig">刷新</el-button>
-              <el-button type="warning" plain :loading="autoMatchLoading" @click="resetAutoMatchConfig">恢复默认</el-button>
-            </div>
-            <el-form label-width="120px" class="auto-match-form">
-              <el-form-item v-for="pair in [8, 7, 6, 5, 4, 3, 2, 1]" :key="pair" :label="`剩余 ${pair} 对`">
-                <el-input-number
-                  v-model="autoMatchConfig[pair]"
-                  :min="0"
-                  :max="1"
-                  :step="0.05"
-                  :precision="2"
-                  :controls="false"
-                  style="width: 140px"
-                />
-                <span class="auto-match-hint">触发概率（0~1）</span>
-              </el-form-item>
-            </el-form>
+          <div v-show="activeTab === 'system-config'">
+            <el-tabs v-model="systemConfigActiveTab" class="system-config-tabs">
+              <el-tab-pane label="自动匹配" name="auto-match">
+                <div class="toolbar">
+                  <el-button type="primary" :loading="systemConfigLoading" @click="saveAutoMatchChances">保存自动匹配</el-button>
+                  <el-button :loading="systemConfigLoading" @click="loadSystemConfig">刷新</el-button>
+                  <el-button type="warning" plain :loading="systemConfigLoading" @click="resetAutoMatchChances">恢复默认</el-button>
+                </div>
+                <el-form label-width="120px" class="system-config-form">
+                  <el-form-item v-for="pair in [8, 7, 6, 5, 4, 3, 2, 1]" :key="pair" :label="`剩余 ${pair} 对`">
+                    <el-input-number
+                      v-model="systemConfigChances[pair]"
+                      :min="0"
+                      :max="1"
+                      :step="0.05"
+                      :precision="2"
+                      :controls="false"
+                      style="width: 140px"
+                    />
+                    <span class="system-config-hint">触发概率（0~1）</span>
+                  </el-form-item>
+                </el-form>
+              </el-tab-pane>
+
+              <el-tab-pane label="年龄标签" name="age-segments">
+                <div class="toolbar">
+                  <el-button type="primary" :loading="systemConfigLoading" @click="saveAgeSegmentLabels">保存年龄标签</el-button>
+                  <el-button :loading="systemConfigLoading" @click="loadSystemConfig">刷新</el-button>
+                  <el-button type="warning" plain :loading="systemConfigLoading" @click="resetAgeSegmentLabels">恢复默认</el-button>
+                </div>
+                <el-form label-width="120px" class="system-config-form">
+                  <el-form-item label="年龄段 1">
+                    <el-input v-model="systemConfigAgeSegments.age_segment_1" placeholder="0-35" style="width: 220px" />
+                    <span class="system-config-hint">对应界面 lbl_1</span>
+                  </el-form-item>
+                  <el-form-item label="年龄段 2">
+                    <el-input v-model="systemConfigAgeSegments.age_segment_2" placeholder="35-55" style="width: 220px" />
+                    <span class="system-config-hint">对应界面 lbl_2</span>
+                  </el-form-item>
+                  <el-form-item label="年龄段 3">
+                    <el-input v-model="systemConfigAgeSegments.age_segment_3" placeholder="55+" style="width: 220px" />
+                    <span class="system-config-hint">对应界面 lbl_3</span>
+                  </el-form-item>
+                </el-form>
+              </el-tab-pane>
+            </el-tabs>
           </div>
 
           <div v-show="activeTab === 'admins'">
@@ -1014,11 +1071,16 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
-.auto-match-form {
+.system-config-form {
   max-width: 420px;
   margin-top: 12px;
 }
-.auto-match-hint {
+.system-config-form h3 {
+  margin: 18px 0 12px;
+  font-size: 16px;
+  color: #334155;
+}
+.system-config-hint {
   margin-left: 12px;
   color: #94a3b8;
   font-size: 13px;

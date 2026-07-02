@@ -28,6 +28,7 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
     await this.createDailyStatsTable();
     await this.createDifficultyTable();
     await this.createAutoMatchConfigTable();
+    await this.createSystemConfigTable();
     await this.seedDefaultAdmin();
   }
 
@@ -289,6 +290,30 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
     if (!missing.length) return;
     const values = missing.map((pairCount) => [pairCount, defaults[pairCount]]);
     await this.pool.query('INSERT INTO auto_match_config (pair_count, chance) VALUES ?', [values]);
+  }
+
+  private async createSystemConfigTable() {
+    await this.pool.query(`
+      CREATE TABLE IF NOT EXISTS system_config (
+        config_key VARCHAR(64) NOT NULL PRIMARY KEY,
+        config_value TEXT NOT NULL,
+        updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `);
+    const defaults: Record<string, string> = {
+      age_segment_1: '0-35',
+      age_segment_2: '35-55',
+      age_segment_3: '55+',
+    };
+    const [rows]: any = await this.pool.query(
+      'SELECT config_key FROM system_config WHERE config_key IN (?, ?, ?)',
+      Object.keys(defaults),
+    );
+    const existing = new Set((rows || []).map((row: any) => row.config_key));
+    const missing = Object.keys(defaults).filter((key) => !existing.has(key));
+    if (!missing.length) return;
+    const values = missing.map((key) => [key, defaults[key]]);
+    await this.pool.query('INSERT INTO system_config (config_key, config_value) VALUES ?', [values]);
   }
 
   private async seedDefaultAdmin() {
