@@ -1,5 +1,4 @@
 .env
 server/dist/
-web/dist/
 server/node_modules/
 web/node_modules/
