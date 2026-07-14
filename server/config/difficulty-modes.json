@@ -3,7 +3,7 @@
     "normal": {
       "label": "普通",
       "description": "普通关卡难度",
-      "maxLevel": 1000,
+      "maxLevel": 2000,
       "groupSize": 0,
       "groupCount": 0,
       "curveType": "wave",

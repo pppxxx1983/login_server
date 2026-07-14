@@ -6,7 +6,7 @@ import { createDefaultDifficultyLevel } from './difficulty-config';
 
 const VALID_MODES = ['normal', 'travel', 'signin'];
 const MODE_CONFIG: Record<string, { maxLevel: number; groupSize: number }> = {
-  normal: { maxLevel: 1000, groupSize: 0 },
+  normal: { maxLevel: 2000, groupSize: 0 },
   travel: { maxLevel: 120, groupSize: 10 },
   signin: { maxLevel: 31, groupSize: 31 },
 };

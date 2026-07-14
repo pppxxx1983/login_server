@@ -1,7 +1,7 @@
 const mysql = require('mysql2/promise');
 
 const MODE_CONFIG = {
-  normal: { maxLevel: 1000, curveType: 'wave', curveAmplitude: 0.12, curveCycles: 1 },
+  normal: { maxLevel: 2000, curveType: 'wave', curveAmplitude: 0.12, curveCycles: 1 },
   signin: { maxLevel: 31, groupSize: 31, curveType: 'wave', curveAmplitude: 0.12, curveCycles: 1 },
   travel: { maxLevel: 120, groupSize: 10, curveType: 'wave', curveAmplitude: 0.12, curveCycles: 1 },
 };

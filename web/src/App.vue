@@ -301,7 +301,7 @@ function addDifficultyRange() {
   const highestEnd = difficultyRows.value.reduce((max, item) => Math.max(max, Number(item.endLevel) || 0), 0);
   const startLevel = highestEnd + 1;
   const groupSize = difficultyMode.value === 'signin' ? 31 : 10;
-  const maxLevel = difficultyMode.value === 'travel' ? 120 : (difficultyMode.value === 'signin' ? 31 : 1000);
+  const maxLevel = difficultyMode.value === 'travel' ? 120 : (difficultyMode.value === 'signin' ? 31 : 2000);
   const safeStart = Math.min(startLevel, maxLevel);
   const safeEnd = Math.min(maxLevel, safeStart + groupSize - 1);
   difficultyRows.value.unshift({
@@ -845,7 +845,7 @@ onBeforeUnmount(() => {
 
           <div v-show="activeTab === 'levels'">
             <div class="toolbar">
-              <el-input-number v-model="level" :min="1" :max="1000" />
+              <el-input-number v-model="level" :min="1" :max="2000" />
               <el-button type="primary" @click="loadLevelRanks">查询</el-button>
             </div>
             <el-table v-loading="loading" :data="levelRanks" stripe>
@@ -927,7 +927,7 @@ onBeforeUnmount(() => {
               <el-button type="primary" @click="addDifficultyRange">新增关卡段</el-button>
               <el-button :loading="difficultyLoading" @click="loadDifficulty">刷新</el-button>
               <el-button type="warning" plain :loading="difficultyLoading" @click="resetDifficulty">恢复默认配置</el-button>
-              <span class="difficulty-tip">当前模式：{{ difficultyMode === 'travel' ? '旅行（120关，10关一组）' : (difficultyMode === 'signin' ? '签到（1组，1-31关）' : '普通（1000关）') }}</span>
+              <span class="difficulty-tip">当前模式：{{ difficultyMode === 'travel' ? '旅行（120关，10关一组）' : (difficultyMode === 'signin' ? '签到（1组，1-31关）' : '普通（2000关）') }}</span>
             </div>
             <el-table v-loading="difficultyLoading" :data="difficultyRows" border stripe class="difficulty-table">
               <el-table-column type="expand" width="48"><template #default="{ row }"><DifficultyRangeDetails v-if="row.id" :range="row" :mode="difficultyMode" @saved="(value: any) => difficultyRangeSaved(row, value)" /><div v-else class="difficulty-tip">请先保存新关卡段，再展开设置曲线。</div></template></el-table-column>
